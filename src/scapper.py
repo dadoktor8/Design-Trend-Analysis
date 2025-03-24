@@ -1,8 +1,8 @@
-import requests,lxml, re, json, urllib.requests
+import requests,lxml, re, json, urllib.request, os
 from bs4 import BeautifulSoup
 
 headers = {
-    "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36"
+    "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:138.0) Gecko/20100101 Firefox/138.0"
 }
 params = {
     "q":"vaporwave aesthetic",
@@ -39,6 +39,7 @@ def get_selected_search_data():
 
 def get_original_images():
     google_images = []
+    save_directory = os.path.join("..","data/images")
     all_script_tag = soup.select("script")
 
     matched_images_data = " ".join(re.findall(r"AF_initDataCallback\(([^<]+)\);",str(all_script_tag)))
@@ -56,5 +57,28 @@ def get_original_images():
         bytes(bytes(thumbnail, "ascii").decode("unicode-escape"),"ascii").decode("unicode-escape") for thumbnail in matched_google_images_thumbnails]
 
     removed_matched_google_images_thumbnails = re.sub(
-        r'\[\"(https\:\/\/encrypted-tbn0\.gstatic\.com\/images\?.*?)\",\d+,\d+\]'
+        r'\[\"(https\:\/\/encrypted-tbn0\.gstatic\.com\/images\?.*?)\",\d+,\d+\]',"",str(matched_google_images_data)
     )
+    matched_google_full_resolution_image = re.findall(r"?:'|,),\[\"(https:|http.*?)\",\d+,\d+\]",removed_matched_google_images_thumbnails)
+    full_res_images = [
+        bytes(bytes(img,"ascii").decode("unicode-escape"),"ascii").decode("unicode-escape") for img in matched_google_full_resolution_image
+    ]
+    for index, (metadata,thumbnail,original) in enumerate(zip(soup.select('.isv-r.PNCib.MSM1fd.BUooTd'),thumbnails, full_res_images),start=1):
+        google_images.append({
+            "title":metadata.select_one(".VFACy.kGQAp.sMi44c.lNHeqe.WGvvNb")["title"],
+            "link":metadata.select_one(".VFACy.kGQAp.sMi44c.lNHeqe.WGvvNb")["href"],
+            "source":metadata.select_one(".fxgdke").text,
+            "thumbnail":thumbnail,
+            "original":original
+        })
+
+        print(f"Downloading{index} image .....")
+        opener=urllib.request.build_opener()
+        opener.addheaders=[('User-Agent','Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:138.0) Gecko/20100101 Firefox/138.0')]
+        urllib.request.install_opener(opener)
+
+        file_path = os.path.join(save_directory,f'original_size_image_{index}.jpg')
+
+        urllib.request.urlretrieve(original, file_path)
+        #urllib.request.urlretrieve(original, f'Bs4_Images/original_size_img_{index}.jpg')
+    return google_images
